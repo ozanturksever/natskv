@@ -7,18 +7,18 @@
 A **storage backend** in `valkeyrie` implements (fully or partially) the [Store](https://github.com/kvtools/valkeyrie/blob/master/store/store.go#L69) interface.
 
 | Calls                 | NatsKV |
-|-----------------------|:---------:|
-| Put                   |    🟢️    |
-| Get                   |    🟢️    |
-| Delete                |    🟢️    |
-| Exists                |    🟢️    |
-| Watch                 |    🟢️    |
-| WatchTree             |    🟢️    |
-| NewLock (Lock/Unlock) |    🟢️    |
-| List                  |    🟢️    |
-| DeleteTree            |    🟢️    |
-| AtomicPut             |    🟢️    |
-| AtomicDelete          |    🟢️    |
+|-----------------------|:-----:|
+| Put                   |  🟢️  |
+| Get                   |  🟢️  |
+| Delete                |  🟢️  |
+| Exists                |  🟢️  |
+| Watch                 |  🟢️  |
+| WatchTree             |  🟢️  |
+| NewLock (Lock/Unlock) |  ️    |
+| List                  |  🟢️  |
+| DeleteTree            |  🟢️  |
+| AtomicPut             |  🟢️  |
+| AtomicDelete          |  🟢️  |
 
 ## Supported Versions
 

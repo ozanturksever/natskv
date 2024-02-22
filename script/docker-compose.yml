@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  nats:
+    image: nats:2.10.11
+    container_name: nats-server
+    command: ["-js"]
+    ports:
+      - "4222:4222"

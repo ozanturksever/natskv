@@ -19,6 +19,7 @@ func init() {
 
 type Config struct {
 	Bucket string
+	Nc     *nats.Conn
 }
 
 func newStore(ctx context.Context, endpoints []string, options valkeyrie.Config) (store.Store, error) {
@@ -45,12 +46,21 @@ func New(_ context.Context, endpoints []string, options *Config) (store.Store, e
 		}
 	}
 
-	nc, err := nats.Connect(strings.Join(endpoints, ","))
-	if err != nil {
-		return nil, err
+	if options != nil {
+		if options.Nc != nil {
+			s.nc = options.Nc
+
+		}
 	}
-	s.nc = nc
-	js, err := jetstream.New(nc)
+	if s.nc == nil {
+		nc, err := nats.Connect(strings.Join(endpoints, ","))
+		if err != nil {
+			return nil, err
+		}
+		s.nc = nc
+	}
+
+	js, err := jetstream.New(s.nc)
 	if err != nil {
 		return nil, err
 	}

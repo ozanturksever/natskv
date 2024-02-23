@@ -1,6 +1,6 @@
 module github.com/ozanturksever/natskv
 
-go 1.22
+go 1.21
 
 require (
 	github.com/kvtools/valkeyrie v1.0.0

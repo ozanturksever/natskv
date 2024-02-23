@@ -1,5 +1,7 @@
 # Valkeyrie NatsKV
 
+[![GoDoc](https://godoc.org/github.com/ozanturksever/natskv?status.png)](https://godoc.org/github.com/ozanturksever/natskv)
+[![Build Status](https://github.com/ozanturksever/natskv/actions/workflows/build.yml/badge.svg)](https://github.com/ozanturksever/natskv/actions/workflows/build.yml)
 [`valkeyrie`](https://github.com/kvtools/valkeyrie) provides a Go native library to store metadata using Distributed Key/Value stores (or common databases).
 
 ## Compatibility

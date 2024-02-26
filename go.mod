@@ -3,6 +3,7 @@ module github.com/ozanturksever/natskv
 go 1.21
 
 require (
+	github.com/cristalhq/base64 v0.1.2
 	github.com/kvtools/valkeyrie v1.0.0
 	github.com/nats-io/nats.go v1.33.1
 	github.com/stretchr/testify v1.8.4

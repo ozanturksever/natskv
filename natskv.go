@@ -3,6 +3,7 @@ package natskv
 import (
 	"context"
 	"errors"
+	"github.com/cristalhq/base64"
 	"github.com/kvtools/valkeyrie"
 	"github.com/kvtools/valkeyrie/store"
 	"github.com/nats-io/nats.go"
@@ -86,7 +87,7 @@ func (s *Store) Get(ctx context.Context, key string, _ *store.ReadOptions) (pair
 	}
 
 	pair = &store.KVPair{
-		Key:       kve.Key(),
+		Key:       decodeKey(kve.Key()),
 		Value:     kve.Value(),
 		LastIndex: kve.Revision(),
 	}
@@ -135,7 +136,7 @@ func (s *Store) Watch(ctx context.Context, key string, _ *store.ReadOptions) (<-
 			case kve := <-w.Updates():
 				if kve != nil {
 					pair := &store.KVPair{
-						Key:       kve.Key(),
+						Key:       decodeKey(kve.Key()),
 						Value:     kve.Value(),
 						LastIndex: kve.Revision(),
 					}
@@ -195,7 +196,15 @@ func normalizeKey(key string) string {
 	if k[len(k)-1] == '.' {
 		return k[:len(k)-1]
 	}
-	return k
+	return base64.StdEncoding.EncodeToString([]byte(k))
+}
+
+func decodeKey(k string) string {
+	d, err := base64.StdEncoding.DecodeToString([]byte(k))
+	if err != nil {
+		return string(k)
+	}
+	return d
 }
 
 func (s *Store) List(ctx context.Context, directory string, opts *store.ReadOptions) ([]*store.KVPair, error) {
@@ -218,7 +227,7 @@ func (s *Store) List(ctx context.Context, directory string, opts *store.ReadOpti
 			return nil, err
 		}
 		kvs = append(kvs, &store.KVPair{
-			Key:       kve.Key(),
+			Key:       decodeKey(kve.Key()),
 			Value:     kve.Value(),
 			LastIndex: kve.Revision(),
 		})
@@ -261,7 +270,7 @@ func (s *Store) AtomicPut(ctx context.Context, key string, value []byte, previou
 		}
 
 		pair := &store.KVPair{
-			Key:       key,
+			Key:       decodeKey(key),
 			Value:     value,
 			LastIndex: rev,
 		}
@@ -277,7 +286,7 @@ func (s *Store) AtomicPut(ctx context.Context, key string, value []byte, previou
 		return false, nil, err
 	}
 	return true, &store.KVPair{
-		Key:       key,
+		Key:       decodeKey(key),
 		Value:     value,
 		LastIndex: rev,
 	}, nil

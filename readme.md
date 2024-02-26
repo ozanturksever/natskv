@@ -37,17 +37,18 @@ import (
 	"log"
 
 	"github.com/kvtools/valkeyrie"
-	"github.com/ozanturksever/NatsKV"
+	"github.com/ozanturksever/natskv"
 )
 
 func main() {
 	ctx := context.Background()
 
-	config := &NatsKV.Config{
+	config := &natskv.Config{
         Bucket: "example",
+		EncodeKey: false,
 	}
 
-	kv, err := valkeyrie.NewStore(ctx, NatsKV.StoreName, []string{ "nats://localhost:4222"}, config)
+	kv, err := valkeyrie.NewStore(ctx, natskv.StoreName, []string{ "nats://localhost:4222"}, config)
 	if err != nil {
 		log.Fatal("Cannot create store")
 	}

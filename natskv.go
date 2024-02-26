@@ -3,7 +3,6 @@ package natskv
 import (
 	"context"
 	"errors"
-	"github.com/cristalhq/base64"
 	"github.com/kvtools/valkeyrie"
 	"github.com/kvtools/valkeyrie/store"
 	"github.com/nats-io/nats.go"
@@ -19,8 +18,9 @@ func init() {
 }
 
 type Config struct {
-	Bucket string
-	Nc     *nats.Conn
+	Bucket    string
+	EncodeKey bool
+	Nc        *nats.Conn
 }
 
 func newStore(ctx context.Context, endpoints []string, options valkeyrie.Config) (store.Store, error) {
@@ -33,12 +33,15 @@ func newStore(ctx context.Context, endpoints []string, options valkeyrie.Config)
 }
 
 type Store struct {
+	keyUtils
 	nc *nats.Conn
 	kv jetstream.KeyValue
 }
 
 func New(_ context.Context, endpoints []string, options *Config) (store.Store, error) {
-	s := &Store{}
+	s := &Store{
+		keyUtils: keyUtils{options: options},
+	}
 
 	bucket := "kvstore"
 	if options != nil {
@@ -78,7 +81,7 @@ func New(_ context.Context, endpoints []string, options *Config) (store.Store, e
 }
 
 func (s *Store) Get(ctx context.Context, key string, _ *store.ReadOptions) (pair *store.KVPair, err error) {
-	kve, err := s.kv.Get(ctx, normalizeKey(key))
+	kve, err := s.kv.Get(ctx, s.normalizeKey(key))
 	if errors.Is(err, jetstream.ErrKeyNotFound) {
 		return nil, store.ErrKeyNotFound
 	}
@@ -87,7 +90,7 @@ func (s *Store) Get(ctx context.Context, key string, _ *store.ReadOptions) (pair
 	}
 
 	pair = &store.KVPair{
-		Key:       decodeKey(kve.Key()),
+		Key:       s.decodeKey(kve.Key()),
 		Value:     kve.Value(),
 		LastIndex: kve.Revision(),
 	}
@@ -96,13 +99,13 @@ func (s *Store) Get(ctx context.Context, key string, _ *store.ReadOptions) (pair
 }
 
 func (s *Store) Put(ctx context.Context, key string, value []byte, opts *store.WriteOptions) error {
-	_, err := s.kv.Put(ctx, normalizeKey(key), value)
+	_, err := s.kv.Put(ctx, s.normalizeKey(key), value)
 
 	return err
 }
 
 func (s *Store) Delete(ctx context.Context, key string) error {
-	err := s.kv.Delete(ctx, normalizeKey(key))
+	err := s.kv.Delete(ctx, s.normalizeKey(key))
 	if errors.Is(err, jetstream.ErrKeyNotFound) {
 		return store.ErrKeyNotFound
 	}
@@ -110,7 +113,7 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 }
 
 func (s *Store) Exists(ctx context.Context, key string, _ *store.ReadOptions) (bool, error) {
-	_, err := s.kv.Get(context.Background(), normalizeKey(key))
+	_, err := s.kv.Get(context.Background(), s.normalizeKey(key))
 	if errors.Is(err, jetstream.ErrKeyNotFound) {
 		return false, nil
 	}
@@ -121,7 +124,14 @@ func (s *Store) Exists(ctx context.Context, key string, _ *store.ReadOptions) (b
 }
 
 func (s *Store) Watch(ctx context.Context, key string, _ *store.ReadOptions) (<-chan *store.KVPair, error) {
-	w, err := s.kv.Watch(ctx, normalizeKey(key))
+	var nKey string
+	if len(key) > 2 && key[len(key)-2:] == "/*" {
+		key = key[:len(key)-2]
+		nKey = s.normalizeKey(key) + ".*"
+	} else {
+		nKey = s.normalizeKey(key)
+	}
+	w, err := s.kv.Watch(ctx, nKey)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +146,7 @@ func (s *Store) Watch(ctx context.Context, key string, _ *store.ReadOptions) (<-
 			case kve := <-w.Updates():
 				if kve != nil {
 					pair := &store.KVPair{
-						Key:       decodeKey(kve.Key()),
+						Key:       s.decodeKey(kve.Key()),
 						Value:     kve.Value(),
 						LastIndex: kve.Revision(),
 					}
@@ -151,16 +161,9 @@ func (s *Store) Watch(ctx context.Context, key string, _ *store.ReadOptions) (<-
 
 	return watchCh, nil
 }
-func toWildcard(key string) string {
-	key = normalizeKey(key)
-	if key[len(key)-1] != '.' {
-		key += "."
-	}
-	return key + "*"
-}
 
 func (s *Store) WatchTree(ctx context.Context, directory string, opts *store.ReadOptions) (<-chan []*store.KVPair, error) {
-	innerWatchCh, err := s.Watch(ctx, toWildcard(directory), opts)
+	innerWatchCh, err := s.Watch(ctx, directory+"/*", opts)
 	if err != nil {
 		return nil, err
 	}
@@ -184,29 +187,6 @@ func (s *Store) WatchTree(ctx context.Context, directory string, opts *store.Rea
 	return watchCh, nil
 }
 
-func isInDirectory(directory, key string) bool {
-	if directory[len(directory)-1] != '.' {
-		directory += "."
-	}
-	return strings.HasPrefix(key, directory)
-}
-
-func normalizeKey(key string) string {
-	k := strings.ReplaceAll(key, "/", ".")
-	if k[len(k)-1] == '.' {
-		return k[:len(k)-1]
-	}
-	return base64.StdEncoding.EncodeToString([]byte(k))
-}
-
-func decodeKey(k string) string {
-	d, err := base64.StdEncoding.DecodeToString([]byte(k))
-	if err != nil {
-		return string(k)
-	}
-	return d
-}
-
 func (s *Store) List(ctx context.Context, directory string, opts *store.ReadOptions) ([]*store.KVPair, error) {
 	kl, err := s.kv.ListKeys(ctx)
 	if err != nil {
@@ -216,18 +196,22 @@ func (s *Store) List(ctx context.Context, directory string, opts *store.ReadOpti
 	var kvs []*store.KVPair
 	exists := false
 	for k := range kl.Keys() {
-		if strings.HasPrefix(k, normalizeKey(directory)) {
-			exists = true
-		}
-		if !isInDirectory(normalizeKey(directory), k) {
+		nDirectory := s.normalizeKey(directory)
+		if !s.isInDirectory(nDirectory, k) {
 			continue
+		} else {
+			exists = true
 		}
 		kve, err := s.kv.Get(ctx, k)
 		if err != nil {
 			return nil, err
 		}
+		dKey := s.decodeKey(kve.Key())
+		if dKey == directory || dKey+"/" == directory {
+			continue
+		}
 		kvs = append(kvs, &store.KVPair{
-			Key:       decodeKey(kve.Key()),
+			Key:       dKey,
 			Value:     kve.Value(),
 			LastIndex: kve.Revision(),
 		})
@@ -255,7 +239,7 @@ func (s *Store) DeleteTree(ctx context.Context, directory string) error {
 // AtomicPut puts a value at "key" if the key has not been modified in the meantime,
 // throws an error if this is the case.
 func (s *Store) AtomicPut(ctx context.Context, key string, value []byte, previous *store.KVPair, opts *store.WriteOptions) (bool, *store.KVPair, error) {
-	key = normalizeKey(key)
+	key = s.normalizeKey(key)
 	if previous != nil {
 		rev, err := s.kv.Update(ctx, key, value, previous.LastIndex)
 		if err != nil {
@@ -270,7 +254,7 @@ func (s *Store) AtomicPut(ctx context.Context, key string, value []byte, previou
 		}
 
 		pair := &store.KVPair{
-			Key:       decodeKey(key),
+			Key:       s.decodeKey(key),
 			Value:     value,
 			LastIndex: rev,
 		}
@@ -286,14 +270,13 @@ func (s *Store) AtomicPut(ctx context.Context, key string, value []byte, previou
 		return false, nil, err
 	}
 	return true, &store.KVPair{
-		Key:       decodeKey(key),
+		Key:       s.decodeKey(key),
 		Value:     value,
 		LastIndex: rev,
 	}, nil
 }
 
 func (s *Store) AtomicDelete(ctx context.Context, key string, previous *store.KVPair) (bool, error) {
-	key = normalizeKey(key)
 	if previous == nil {
 		return false, store.ErrPreviousNotSpecified
 	}
@@ -305,7 +288,7 @@ func (s *Store) AtomicDelete(ctx context.Context, key string, previous *store.KV
 	if !exists {
 		return false, store.ErrKeyNotFound
 	}
-	err = s.kv.Delete(ctx, key, jetstream.LastRevision(previous.LastIndex))
+	err = s.kv.Delete(ctx, s.normalizeKey(key), jetstream.LastRevision(previous.LastIndex))
 	if err != nil {
 		if strings.Contains(err.Error(), "wrong last sequence") {
 			return false, store.ErrKeyModified

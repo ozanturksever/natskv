@@ -10,7 +10,11 @@ type keyUtils struct {
 }
 
 func (s *keyUtils) isInDirectory(directory, key string) bool {
-	return strings.HasPrefix(key, directory)
+	parts := strings.Split(key, ".")
+	if len(parts) == 0 {
+		return false
+	}
+	return parts[0] == directory
 }
 
 func (s *keyUtils) normalizeKey(key string) string {

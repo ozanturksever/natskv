@@ -31,4 +31,14 @@ func TestKey(t *testing.T) {
 		d = u.decodeKey("YQ==.Yg==.MS4xLjEuMQ==")
 		require.Equal(t, "a/b/1.1.1.1", d)
 	})
+	t.Run("dir should not match in key", func(t *testing.T) {
+		u := keyUtils{options: &Config{EncodeKey: true}}
+		isExist := u.isInDirectory("Dashboard", "DashboardCategory.co7663n3vlts3ko6o2pg")
+		require.False(t, isExist)
+	})
+	t.Run("dir should match in key", func(t *testing.T) {
+		u := keyUtils{options: &Config{EncodeKey: true}}
+		isExist := u.isInDirectory("Dashboard", "Dashboard.co7663n3vlts3ko6o2pg")
+		require.True(t, isExist)
+	})
 }

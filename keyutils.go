@@ -10,11 +10,14 @@ type keyUtils struct {
 }
 
 func (s *keyUtils) isInDirectory(directory, key string) bool {
-	parts := strings.Split(key, ".")
-	if len(parts) == 0 {
-		return false
+	keyParts := strings.Split(key, ".")
+	dirParts := strings.Split(directory, ".")
+
+	if len(keyParts) > 0 && len(dirParts) == 1 {
+		isExists := strings.HasPrefix(key, directory+".")
+		return isExists
 	}
-	return parts[0] == directory
+	return strings.HasPrefix(key, directory)
 }
 
 func (s *keyUtils) normalizeKey(key string) string {

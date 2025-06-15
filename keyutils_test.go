@@ -36,6 +36,11 @@ func TestKey(t *testing.T) {
 		isExist := u.isInDirectory("Dashboard", "DashboardCategory.co7663n3vlts3ko6o2pg")
 		require.False(t, isExist)
 	})
+	t.Run("shouw not match", func(t *testing.T) {
+		u := keyUtils{options: &Config{EncodeKey: true}}
+		isExist := u.isInDirectory("next.TestModel", "next.TestModelHistory.d17ip8u11q7rr4vj1v2g")
+		require.False(t, isExist)
+	})
 	t.Run("dir should match in key", func(t *testing.T) {
 		u := keyUtils{options: &Config{EncodeKey: true}}
 		isExist := u.isInDirectory("Dashboard", "Dashboard.co7663n3vlts3ko6o2pg")
